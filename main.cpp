@@ -8,10 +8,12 @@
 block mine(string prevhash, string merkelhash, string miner, int nonce, double version, int DT, int &blocknum, bool &found, vector<transaction> &transactions);
 string merkel_root_hash (vector<transaction> list);
 void execute(vector<transaction> list, bool &invalid);
+void checkTransactions();
+//bool compareAmount(transaction& a, transaction& b) { return a.getAmount() > b.getAmount(); }    //for sorting POOL (desc)
 
 //settings
-const int USERcount = 100;
-const int TRANSACTIONcount = 1000;
+const int USERcount = 1000;
+const int TRANSACTIONcount = 10000;
 const int private_key_length = 30;
 const int difficulty_target = 5;
 const double version = 1.0;
@@ -19,7 +21,6 @@ const double version = 1.0;
 
 vector<block> BLOCKCHAIN;
 vector<user> USERS;
-//map <string, user> USERS
 unordered_map<string, size_t> USERindex;
 vector<transaction> POOL;
 
@@ -189,6 +190,11 @@ cout<<"Genesis block created.\n\n";
     a++;
     //
 
+
+
+
+
+
 cout<<"\nSimulating mining with 5 miners: A, B, C, D, E...\n\n"; 
 
     bool mining=true;
@@ -202,6 +208,13 @@ cout<<"\nSimulating mining with 5 miners: A, B, C, D, E...\n\n";
         string merkelA="", merkelB="", merkelC="", merkelD="", merkelE="";
 
         string prevhash = BLOCKCHAIN.at(BLOCKCHAIN.size()-1).getBLOCK_HASH();
+
+        //shuffle (or sort) pool
+        //if (fail<19500) std::shuffle(POOL.begin(), POOL.end(), generate);
+        //else sort (POOL.begin(), POOL.end(), compareAmount);
+
+
+        if (fail>19500){ checkTransactions();}
 
         //shuffle pool
         std::shuffle(POOL.begin(), POOL.end(), generate);
@@ -390,14 +403,20 @@ cout<<"\nSimulating mining with 5 miners: A, B, C, D, E...\n\n";
         poolD.clear();
         poolE.clear();
 
-        //check
-        if (POOL.size()<100) mining=false;
-        if (fail>10000) {mining=false; }
+        //checks
+        if (POOL.size()<100) {mining=false; if(POOL.size()>0) fail=1;}
+        if (fail>20000) {mining=false; fail=2;}
+        if (POOL.size()==100 && fail>0) {mining=false; fail=3;}
+
 
     } // while(mining)
 
 if (fail==0) cout<<"\nBlockchain simulation complete.\n\n"; 
-else cout<<"\nBlockchain simulation ended early.\nCause: Too many invalid transactions in remaining pool.\n\n"; 
+else {cout<<"\nBlockchain simulation ended early.\n";
+    if (fail==1){cout<<"Cause: Less than 100 transactions left in pool. \n\n"; }
+    else if (fail==2){cout<<"Cause: Unable to find a 100 valid transactions.\n\n"; }
+    else if (fail==3){cout<<"Cause: Invalid transaction found in the last 100 transactions.\n\n"; }
+}//else
 
 
 
@@ -453,22 +472,64 @@ cout<<"Blockchain info can be found in blockchain.txt\n\n";
 
 
 
-
-
     //output users with updated balances to a new file
+        string usersOUT2="";
+        ofstream usersFILE2 ("users after simulation.txt");
 
-    //output remaining transactions to file
-    if (fail>0) {}
+        a=1; //counter
+
+        for (auto i:USERS) {
+
+            string temp="";
+            stringstream ss;
+            ss<<i;
+            usersOUT2+="USER "+ to_string(a) + ":\n";
+            while (getline(ss, temp)){
+                usersOUT2+="\n"+temp;
+                temp="";
+            }//while
+            usersOUT2+="\n\n\n";
+            a++;
+        }//for
+
+        usersFILE2<< usersOUT2;
+        usersFILE2.close();
+        usersOUT2="";
+    //
+
+cout<<"User list with updated balances can be found in \"users after simulation.txt\"\n\n";
 
 
 
+//     //output remaining transactions to file
+//     if (fail>0) {
+//         string transactionsOUT2="";                              //output string
+//         ofstream transactionsFILE2 ("remaining transactions.txt");         //output file
 
+//         a=1;    //reset counter
 
+//         for (auto i:POOL){                                      //add transactions to output string
 
+//             string temp="";
+//             stringstream ss;
+//             ss<<i;
+//             transactionsOUT2+="TRANSACTION "+ to_string(a) + "\n";
+//             while (getline(ss, temp)){
+//                 transactionsOUT2+="\n"+temp;
+//                 temp="";
+//             }//while
+//             transactionsOUT2+="\n\n\n";
+//             a++;
+//         }//for
 
+//         transactionsFILE2<<transactionsOUT2;                      //output to file
+//         transactionsFILE2.close();
+//         transactionsOUT2="";
+//     //
 
+// cout<<"List of transactions left in the pool after simulation can be found in \"remaining transactions.txt\"\n\n";
 
-
+//     }//if (fail>0)
 
 
 
@@ -585,21 +646,53 @@ void execute(vector<transaction> list, bool &invalid){
 
                 invalid=true;
 
-                //undo excecuted transactions
-                for (auto e:excecuted){
-
-                    //indexes
-                    size_t IndexSender = USERindex[i.getSender()];
-                    size_t IndexReceiver = USERindex[i.getReceiver()];
-
-                    USERS[senderIndex].updateBalance( i.getAmount() );     // update sender balance
-                    USERS[receiverIndex].updateBalance( i.getAmount() *(-1));        // update receiver balance
-                }//for auto excecuted
-
                 break;
             }//else
 
         }//for auto list
 
+
+        //undo excecuted transactions
+        if (invalid) {for (auto e:excecuted){
+
+            //indexes
+            size_t IndexSender = USERindex[e.getSender()];
+            size_t IndexReceiver = USERindex[e.getReceiver()];
+
+            USERS[IndexSender].updateBalance( e.getAmount() );                  // update sender balance
+            USERS[IndexReceiver].updateBalance( e.getAmount() *(-1));           // update receiver balance
+        }//for auto excecuted
+        }
+
         excecuted.clear();
+}
+
+//━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+void checkTransactions(){
+
+    vector<transaction> temporaryPOOL;
+
+    for (auto i:POOL){
+
+        //sender index
+        size_t senderIndex = USERindex[i.getSender()];
+
+        if (USERS[senderIndex].getBalance()>=i.getAmount()){    // if sender balance larger than transaction amount
+        temporaryPOOL.push_back(i);
+        }//if
+
+    }//for
+
+    int invalidTransactionCount=POOL.size()-temporaryPOOL.size();
+
+    POOL.clear();                                               // clear current pool
+
+    for (auto i:temporaryPOOL) POOL.push_back(i);               // put transactions back into pool
+
+    temporaryPOOL.clear();                                      // clear temporary pool
+
+    if (invalidTransactionCount!=0) cout<<"\nRemoved "<<invalidTransactionCount<<" invalid transactions from the pool\n";
 }
