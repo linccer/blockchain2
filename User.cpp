@@ -24,5 +24,10 @@
         return out;
     }
 
+    //comparison (for map)
+    //bool operator<(const user& one, const user& two){
+    //    return one.publicKey < two.publicKey; 
+    //};
+
     //destruktorius
     user::~user(){ name.clear(); privateKey.clear(); publicKey.clear(); balance=0; }

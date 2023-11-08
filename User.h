@@ -29,6 +29,9 @@ public:
     //cout
     friend ostream &operator<<(ostream &out, user &USER);
 
+    //comparison (for map)
+    //friend bool operator<(const user& one, const user& two);
+
     //destruktorius
     ~user();
     

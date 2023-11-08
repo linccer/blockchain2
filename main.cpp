@@ -3,16 +3,24 @@
 #include "User.h"
 #include "Transaction.h"
 #include "generatorFunctions.h"
+#include "hashFunction.h"
 
+block mine(string prevhash, string merkelhash, string miner, int nonce, double version, int DT, int &blocknum, bool &found, vector<transaction> &transactions);
+string merkel_root_hash (vector<transaction> list);
+void execute(vector<transaction> list, bool &invalid);
 
 //settings
 const int USERcount = 100;
-const int TRANSACTIONcount = 10000;
+const int TRANSACTIONcount = 1000;
 const int private_key_length = 30;
+const int difficulty_target = 5;
+const double version = 1.0;
 
 
 vector<block> BLOCKCHAIN;
 vector<user> USERS;
+//map <string, user> USERS
+unordered_map<string, size_t> USERindex;
 vector<transaction> POOL;
 
 
@@ -20,6 +28,10 @@ vector<transaction> POOL;
 
 //main
 int main () {
+
+//━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//                                                               USERS
+//━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 cout<<"\n";
 cout<<"Creating users...\n\n";
@@ -29,6 +41,8 @@ cout<<"Creating users...\n\n";
 
             user temp {randomName(), randomDouble(), randomString(private_key_length)};
             USERS.push_back(temp);
+            USERindex[temp.getKey()] = USERS.size() - 1;
+            //USERS[temp.getKey()] = temp;
         }
     //
 
@@ -60,6 +74,12 @@ cout<<USERcount<<" users created.\n\n";
     //
 
 cout<<"User list can be found in users.txt\n\n";
+
+
+
+//━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//                                                         TRANSACTIONS
+//━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 cout<<"Creating transactions...\n\n";
 
@@ -115,28 +135,330 @@ cout<<TRANSACTIONcount<<" transactions created.\n\n";
 
 cout<<"Transaction list can be found in transactions.txt\n\n";
 
+
+
+//━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//                                                   BLOCKCHAIN SIMULATION
+//━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
 cout<<"Simulating blockchain...\n\n";
 
     a=1;    //block number
+    bool block_found=false;
+
+    int nonceA=0;
+    string hashA="";
+    string timeA="";
 
     //create genesis block
 
+        while (!block_found){
+
+            //timestamp
+                auto now = std::chrono::system_clock::now();
+                time_t now_c = std::chrono::system_clock::to_time_t(now);
+                stringstream ss;
+                ss << std::put_time(std::localtime(&now_c), "%Y-%m-%d %H:%M:%S");
+                getline(ss, timeA);
+            
+
+            //hash(PREV_BLOCK_HASH+"\n"+MERKEL_HASH+"\n"+TIMESTAMP+"\n"+std::to_string(NONCE)+"\n"+std::to_string(VERSION)+"\n"+std::to_string(DT))
+            hashA=hash("-\n-\n" + timeA + "\n" + std::to_string(nonceA)+"\n"+to_string(version)+"\n"+to_string(difficulty_target));
+
+
+            block_found=true;
+
+            for (int a=difficulty_target-1; a>-1; a--){    //check if hash meets difficulty target
+                if (hashA.at(a) != '0') {block_found=false; break;}
+            }//for
+
+            if (!block_found) nonceA++;
+
+        }//while
+
+
+        do {block TEMPblock{"-", "-", timeA, "Miner A", nonceA, version, difficulty_target, a}; //(string PREV_BLOCK_HASH, string MERKEL_HASH, string TIMESTAMP, string MINER, long long int NONCE, double VERSION, int DT, int BLOCK_NUMBER)
+        BLOCKCHAIN.push_back(TEMPblock);} while (1==2);
     //
 
-//cout<<"Genesis block created.\n\n";
+cout<<"Genesis block created.\n\n";
 
     //output the genesis block
+    cout<<BLOCKCHAIN[0];
+    //update block number
+    a++;
+    //
+
+cout<<"\nSimulating mining with 5 miners: A, B, C, D, E...\n\n"; 
+
+    bool mining=true;
+    int fail=0;
+
+    while (mining){
+
+        block_found=false;
+        nonceA=0;
+        string miner="";
+        string merkelA="", merkelB="", merkelC="", merkelD="", merkelE="";
+
+        string prevhash = BLOCKCHAIN.at(BLOCKCHAIN.size()-1).getBLOCK_HASH();
+
+        //shuffle pool
+        std::shuffle(POOL.begin(), POOL.end(), generate);
+
+
+        //pick transactions
+        vector<transaction> poolA;
+        vector<transaction> poolB;
+        vector<transaction> poolC;
+        vector<transaction> poolD;
+        vector<transaction> poolE;
+
+        if (POOL.size()>500){
+
+            for (int a=POOL.size()-1; a>POOL.size()-101; a--){  // A gets 100 last
+                poolA.push_back(POOL.at(a));
+            }//for
+
+            for (int a=POOL.size()-101; a>POOL.size()-201; a--){  // B gets 2nd 100 last
+                poolB.push_back(POOL.at(a));
+            }//for
+
+            for (int a=POOL.size()-1; a>POOL.size()-200; a=a-2){  // C gets every 2nd
+                poolC.push_back(POOL.at(a));
+            }//for
+
+            for (int a=POOL.size()-1; a>POOL.size()-300; a=a-3){  // D gets every 3rd
+                poolD.push_back(POOL.at(a));
+            }//for
+
+            for (int a=POOL.size()-1; a>POOL.size()-500; a=a-5){  // E gets every 5th
+                poolE.push_back(POOL.at(a));
+            }//for
+
+        } else {
+
+            for (int a=POOL.size()-1; a>POOL.size()-100; a--){  // give all miners last 100
+                poolA.push_back(POOL.at(a));
+                poolB.push_back(POOL.at(a));
+                poolC.push_back(POOL.at(a));
+                poolD.push_back(POOL.at(a));
+                poolE.push_back(POOL.at(a));
+            }//for
+
+        }
+
+
+   
+        //calculate merkel hashes
+        if (POOL.size()>=500){
+        merkelA=merkel_root_hash(poolA);
+        merkelB=merkel_root_hash(poolB);
+        merkelC=merkel_root_hash(poolC);
+        merkelD=merkel_root_hash(poolD);
+        merkelE=merkel_root_hash(poolE);
+        } else {
+        merkelA=merkel_root_hash(poolA);
+        merkelB=merkelA;
+        merkelC=merkelA;
+        merkelD=merkelA;
+        merkelE=merkelA;
+        }
+        
+
+
+        //block
+        block tempblock;
+        nonceA=0;
+
+        while (block_found==false){
+
+            //miner A
+            tempblock = mine (prevhash, merkelA, "Miner A", nonceA, version, difficulty_target, a, block_found, poolA);
+            if (block_found){miner="A"; break;}
+
+            //miner B
+            tempblock = mine (prevhash, merkelB, "Miner B", nonceA, version, difficulty_target, a, block_found, poolB);
+            if (block_found){miner="B"; break;}
+
+            //miner C
+            tempblock = mine (prevhash, merkelC, "Miner C", nonceA, version, difficulty_target, a, block_found, poolC);
+            if (block_found){miner="C"; break;}
+
+            //miner D
+            tempblock = mine (prevhash, merkelD, "Miner D", nonceA, version, difficulty_target, a, block_found, poolD);
+            if (block_found){miner="D"; break;}
+
+            //miner E
+            tempblock = mine (prevhash, merkelE, "Miner E", nonceA, version, difficulty_target, a, block_found, poolE);
+            if (block_found){miner="E"; break;}
+
+            nonceA++;
+
+        } // while
+
+
+        //execute transactions
+        bool invalid=false;
+        
+        if (miner=="A"){ execute (poolA, invalid); }
+        else if (miner=="B") { execute (poolB, invalid); }
+        else if (miner=="C") { execute (poolC, invalid); }
+        else if (miner=="D") { execute (poolD, invalid); }
+        else if (miner=="E") { execute (poolE, invalid); }
+        else {invalid=true; cout<<"\n\nERROR - miner not assigned\n\n";}
+
+        if (invalid==false){  // if transactions valid
+
+        //add block to blockchain
+        BLOCKCHAIN.push_back(tempblock);
+
+        //delete transactions from the pool
+
+            vector<transaction> skipped;
+            int UpdatedPoolSize= POOL.size()-100;
+
+            if (miner=="A"){ for(int a=0; a<100; a++) POOL.pop_back(); }
+
+
+            else if (miner=="B") { 
+                for(int a=0; a<100; a++) { skipped.push_back(POOL.at(POOL.size()-1)); POOL.pop_back(); }
+                for(int a=0; a<100; a++) { POOL.pop_back(); }
+            }//B
+
+            
+            else if (miner=="C") { 
+
+                POOL.pop_back();
+                int count=1;
+
+                while ( POOL.size() + skipped.size() != UpdatedPoolSize ){
+
+                    if (count%2==0) {POOL.pop_back();  count++;}
+                    else {skipped.push_back(POOL.at(POOL.size()-1));   POOL.pop_back(); count++;}
+                }//while
+            }//C
+
+
+            else if (miner=="D") {
+
+                POOL.pop_back();
+                int count=1;
+
+                while ( POOL.size() + skipped.size() != UpdatedPoolSize ){
+
+                    if (count%3==0) {POOL.pop_back();  count++;}
+                    else {skipped.push_back(POOL.at(POOL.size()-1));   POOL.pop_back(); count++;}
+                }//while
+            }//D
+
+
+            else if (miner=="E") { 
+                
+                POOL.pop_back();
+                int count=1;
+
+                while ( POOL.size() + skipped.size() != UpdatedPoolSize ){
+
+                    if (count%5==0) {POOL.pop_back();  count++;}
+                    else {skipped.push_back(POOL.at(POOL.size()-1));   POOL.pop_back(); count++;}
+                }//while
+            }//E
+
+
+            for (auto i:skipped) POOL.push_back(i);                 //return to pool
+            skipped.clear();
+        //
+
+
+        //output new block
+        cout<<BLOCKCHAIN.at(BLOCKCHAIN.size()-1);
+        cout<<POOL.size()<<" Transactions remaining in pool\n\n";
+
+        fail=0;     // reset fail counter;
+
+        } else {    // if transactions invalid
+            a--;    //return block number to previous state
+            fail++; //up fail counter
+        }
+
+
+        //clean up
+        poolA.clear();
+        poolB.clear();
+        poolC.clear();
+        poolD.clear();
+        poolE.clear();
+
+        //check
+        if (POOL.size()<100) mining=false;
+        if (fail>10000) {mining=false; }
+
+    } // while(mining)
+
+if (fail==0) cout<<"\nBlockchain simulation complete.\n\n"; 
+else cout<<"\nBlockchain simulation ended early.\nCause: Too many invalid transactions in remaining pool.\n\n"; 
+
+
+
+//━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//                                                       FINAL OUTPUTS
+//━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+
+
+    //output blockchain to file
+        string chainOUT="";
+        ofstream chainFILE ("blockchain.txt");
+
+        for (auto i:BLOCKCHAIN){
+
+            string temp="";
+            stringstream ss;
+            ss<<i;
+            chainOUT+="━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nBLOCK " + to_string( i.getBLOCK_NUMBER() ) + "\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n";
+            
+            while (getline(ss,temp)){
+                chainOUT+="\n"+temp;
+                temp="";
+            }//while
+
+            chainOUT+="\n\n\nTRANSACTIONS: \n\n";
+
+            int b=1;
+
+            for (auto e:i.getTransactionVector()){
+
+                string temp="";
+                stringstream ss;
+                ss<<e;
+                chainOUT+="TRANSACTION "+ to_string(b) + "\n";
+                while (getline(ss, temp)){
+                chainOUT+="\n"+temp;
+                temp="";
+                }//while
+                chainOUT+="\n\n\n";
+                b++;
+            }
+
+        } // for auto BLOCKCHAIN
+
+        chainFILE<< chainOUT;
+        chainFILE.close();
+        chainOUT="";
 
     //
 
-
-    a++;    //update block number;
-
+cout<<"Blockchain info can be found in blockchain.txt\n\n";
 
 
 
 
 
+    //output users with updated balances to a new file
+
+    //output remaining transactions to file
+    if (fail>0) {}
 
 
 
@@ -160,3 +482,124 @@ POOL.clear();
 
 return 0;
 } // main
+
+//━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+//━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+//━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+//━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+//━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+block mine(string prevhash, string merkelhash, string miner, int nonce, double version, int DT, int &blocknum, bool &found, vector<transaction> &transactions){
+
+    //timestamp
+    string time="";
+
+        auto now = std::chrono::system_clock::now();
+        time_t now_c = std::chrono::system_clock::to_time_t(now);
+        stringstream ss;
+        ss << std::put_time(std::localtime(&now_c), "%Y-%m-%d %H:%M:%S");
+        getline(ss, time);
+
+
+    //hash
+    string HASH="";
+
+        HASH=hash(prevhash+"\n" +merkelhash+"\n" +time+"\n" +to_string(nonce)+"\n" +to_string(version)+"\n" + to_string(DT));
+
+    //check if hash fits
+        found=true;
+        for (int a=DT-1; a>-1; a--){    //check if hash meets difficulty target
+        if (HASH.at(a) != '0') {found=false; break;}
+        }//for
+
+    //create block
+    block newblock;
+    if (found) {
+        newblock = block(prevhash, merkelhash, time, miner, nonce, version, DT, blocknum, transactions);
+        blocknum++;}
+
+return newblock;
+}
+
+//━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+string merkel_root_hash (vector<transaction> list) {
+
+    vector<string> hashList;
+    vector<string> temp;
+    bool cycle=true;
+
+    for (auto i:list){hashList.push_back(i.getID());}       // put transaction hashes into hashList
+
+    while (cycle){
+
+        if (hashList.size()%2 != 0){ hashList.push_back(hashList.at(hashList.size()-1)); } //if number of hashes is odd, duplicate last one
+
+        bool first=true;
+        for (int a=0; a<hashList.size(); a++){              // hash pairs, add them to temp
+            
+            if (first==true){
+                first=false;
+                temp.push_back(hash(hashList.at(a)+hashList.at(a+1)));
+            }//if
+        }//for
+
+        hashList.clear();                                   // clear hash list
+        for (auto i:temp) hashList.push_back(i);            // move hashes from temp to hashList
+        temp.clear();                                       // clear temp
+
+        if (hashList.size()==1) cycle=false;                // if only 1 hash is left, stop cycle
+
+    }//while
+
+    return hashList.at(0);
+}
+
+//━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+void execute(vector<transaction> list, bool &invalid){
+
+    vector<transaction> excecuted;
+
+        for (auto i:list){
+
+            //indexes
+            size_t senderIndex = USERindex[i.getSender()];
+            size_t receiverIndex = USERindex[i.getReceiver()];
+
+
+            if (USERS[senderIndex].getBalance()>=i.getAmount()){            // if sender balance larger than amount
+                USERS[senderIndex].updateBalance( i.getAmount()*(-1) );     // update sender balance
+                USERS[receiverIndex].updateBalance( i.getAmount() );        // update receiver balance
+
+                excecuted.push_back(i);                                     //add transaction to executed
+            } else {
+
+                invalid=true;
+
+                //undo excecuted transactions
+                for (auto e:excecuted){
+
+                    //indexes
+                    size_t IndexSender = USERindex[i.getSender()];
+                    size_t IndexReceiver = USERindex[i.getReceiver()];
+
+                    USERS[senderIndex].updateBalance( i.getAmount() );     // update sender balance
+                    USERS[receiverIndex].updateBalance( i.getAmount() *(-1));        // update receiver balance
+                }//for auto excecuted
+
+                break;
+            }//else
+
+        }//for auto list
+
+        excecuted.clear();
+}
